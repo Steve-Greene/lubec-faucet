@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LUBEC Token Faucet</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { text-align: center; color: #333; margin-bottom: 10px; font-size: 32px; }
+        .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 14px; }
+        .instructions {
+            background: #fff3cd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #856404;
+        }
+        .wallet-info {
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .wallet-info.show { display: block; }
+        .wallet-address {
+            font-family: monospace;
+            font-size: 12px;
+            color: #4a5568;
+            word-break: break-all;
+            margin-top: 10px;
+        }
+        button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+        .connect-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .connect-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        .claim-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            display: none;
+        }
+        .claim-btn.show { display: block; }
+        .claim-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(245, 87, 108, 0.4);
+        }
+        .claim-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        .status.show { display: block; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.loading { background: #d1ecf1; color: #0c5460; }
+        .tx-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .tx-link:hover { text-decoration: underline; }
+        .network-badge {
+            display: inline-block;
+            background: #fbbf24;
+            color: #78350f;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌊 LUBEC Faucet</h1>
+        <p class="subtitle">Claim your free LUBEC tokens on Solana Devnet</p>
+        <div style="text-align: center;">
+            <span class="network-badge">⚠️ DEVNET ONLY</span>
+        </div>
+        <div class="instructions">
+            <strong>First time?</strong> Make sure Phantom is connected to <strong>Devnet</strong><br>
+            (Settings → Developer Settings → Testnet Mode → Switch to Devnet)
+        </div>
+        <button id="connectBtn" class="connect-btn">Connect Phantom Wallet</button>
+        <div id="walletInfo" class="wallet-info">
+            <strong>Connected Wallet:</strong>
+            <div id="walletAddress" class="wallet-address"></div>
+        </div>
+        <button id="claimBtn" class="claim-btn">Claim 100 LUBEC Tokens</button>
+        <div id="status" class="status"></div>
+    </div>
+    <script>
+        let walletAddress = null;
+        const connectBtn = document.getElementById('connectBtn');
+        const claimBtn = document.getElementById('claimBtn');
+        const walletInfo = document.getElementById('walletInfo');
+        const walletAddressEl = document.getElementById('walletAddress');
+        const statusEl = document.getElementById('status');
+
+        const getProvider = () => {
+            if ('phantom' in window) {
+                const provider = window.phantom?.solana;
+                if (provider?.isPhantom) return provider;
+            }
+            return null;
+        };
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                const provider = getProvider();
+                if (!provider) {
+                    showStatus('Please install Phantom Wallet from phantom.app', 'error');
+                    window.open('https://phantom.app/', '_blank');
+                    return;
+                }
+                const resp = await provider.connect();
+                walletAddress = resp.publicKey.toString();
+                walletAddressEl.textContent = walletAddress;
+                walletInfo.classList.add('show');
+                claimBtn.classList.add('show');
+                connectBtn.textContent = 'Wallet Connected ✓';
+                connectBtn.disabled = true;
+                showStatus('Wallet connected! Ready to claim tokens.', 'success');
+            } catch (err) {
+                console.error(err);
+                showStatus('Failed to connect wallet: ' + err.message, 'error');
+            }
+        });
+
+        claimBtn.addEventListener('click', async () => {
+            if (!walletAddress) {
+                showStatus('Please connect your wallet first', 'error');
+                return;
+            }
+            claimBtn.disabled = true;
+            claimBtn.textContent = 'Processing...';
+            showStatus('Claiming tokens... This may take 15-30 seconds.', 'loading');
+
+            try {
+                const response = await fetch('/api/airdrop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ walletAddress: walletAddress })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Airdrop failed');
+
+                const txLink = `https://solscan.io/tx/${data.signature}?cluster=devnet`;
+                statusEl.innerHTML = `<strong>🎉 Success!</strong><br>100 LUBEC tokens sent to your wallet!<br><a href="${txLink}" target="_blank" class="tx-link">View Transaction on Solscan →</a>`;
+                statusEl.className = 'status success show';
+                claimBtn.textContent = 'Claimed ✓';
+            } catch (err) {
+                console.error(err);
+                showStatus(`Error: ${err.message}`, 'error');
+                claimBtn.disabled = false;
+                claimBtn.textContent = 'Claim 100 LUBEC Tokens';
+            }
+        });
+
+        function showStatus(message, type) {
+            statusEl.textContent = message;
+            statusEl.className = `status ${type} show`;
+        }
+
+        window.addEventListener('load', async () => {
+            const provider = getProvider();
+            if (!provider) {
+                showStatus('Phantom wallet not detected. Please install it from phantom.app', 'error');
+                connectBtn.disabled = true;
+                return;
+            }
+            try {
+                const resp = await provider.connect({ onlyIfTrusted: true });
+                walletAddress = resp.publicKey.toString();
+                walletAddressEl.textContent = walletAddress;
+                walletInfo.classList.add('show');
+                claimBtn.classList.add('show');
+                connectBtn.textContent = 'Wallet Connected ✓';
+                connectBtn.disabled = true;
+            } catch (err) { }
+        });
+    </script>
+</body>
+</html>
