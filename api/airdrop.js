@@ -1,5 +1,5 @@
 const { Connection, PublicKey, Keypair, clusterApiUrl } = require('@solana/web3.js');
-const { getOrCreateAssociatedTokenAccount, mintTo } = require('@solana/spl-token');
+const { getOrCreateAssociatedTokenAccount, transfer, getAccount } = require('@solana/spl-token');
 
 module.exports = async (req, res) => {
     res.setHeader('Access-Control-Allow-Credentials', true);
@@ -31,34 +31,52 @@ module.exports = async (req, res) => {
         }
 
         const secretKey = Uint8Array.from(JSON.parse(MINT_AUTHORITY_PRIVATE_KEY));
-        const mintAuthority = Keypair.fromSecretKey(secretKey);
+        const treasuryKeypair = Keypair.fromSecretKey(secretKey);
 
         const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
 
         const mintPublicKey = new PublicKey(LUBEC_MINT_ADDRESS);
         const recipientPublicKey = new PublicKey(walletAddress);
 
-        console.log('Creating/getting token account for:', walletAddress);
+        console.log('Getting treasury token account...');
+
+        const treasuryTokenAccount = await getOrCreateAssociatedTokenAccount(
+            connection,
+            treasuryKeypair,
+            mintPublicKey,
+            treasuryKeypair.publicKey
+        );
+
+        console.log('Treasury token account:', treasuryTokenAccount.address.toString());
+
+        const treasuryAccountInfo = await getAccount(connection, treasuryTokenAccount.address);
+        console.log('Treasury balance:', Number(treasuryAccountInfo.amount) / Math.pow(10, 9), 'LUBEC');
+
+        if (Number(treasuryAccountInfo.amount) < 100 * Math.pow(10, 9)) {
+            return res.status(500).json({ error: 'Faucet is out of tokens. Please contact administrator.' });
+        }
+
+        console.log('Getting/creating recipient token account...');
 
         const recipientTokenAccount = await getOrCreateAssociatedTokenAccount(
             connection,
-            mintAuthority,
+            treasuryKeypair,
             mintPublicKey,
             recipientPublicKey
         );
 
-        console.log('Token account:', recipientTokenAccount.address.toString());
+        console.log('Recipient token account:', recipientTokenAccount.address.toString());
 
         const amount = 100 * Math.pow(10, 9);
 
-        console.log('Minting tokens...');
+        console.log('Transferring 100 LUBEC tokens...');
 
-        const signature = await mintTo(
+        const signature = await transfer(
             connection,
-            mintAuthority,
-            mintPublicKey,
+            treasuryKeypair,
+            treasuryTokenAccount.address,
             recipientTokenAccount.address,
-            mintAuthority,
+            treasuryKeypair.publicKey,
             amount
         );
 
@@ -78,3 +96,4 @@ module.exports = async (req, res) => {
         });
     }
 };
+
